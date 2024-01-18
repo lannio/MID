@@ -7,12 +7,10 @@ from easydict import EasyDict
 import numpy as np
 
 
-
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Pytorch implementation of MID')
     parser.add_argument('--config', default='')
-    parser.add_argument('--dataset', default='')
     return parser.parse_args()
 
 
@@ -24,8 +22,8 @@ def main():
 
     for k, v in vars(args).items():
        config[k] = v
-    config["exp_name"] = args.config.split("/")[-1].split(".")[0]
-    config["dataset"] = args.dataset
+    config["config_name"] = args.config.split("/")[-1].split(".")[0]
+    # config["dataset"] = args.dataset
 
     config = EasyDict(config)
     agent = MID(config)

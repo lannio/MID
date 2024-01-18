@@ -21,8 +21,8 @@ standardization = {
             'y': {'mean': 0, 'std': 1}
         },
         'velocity': {
-            'x': {'mean': 0, 'std': 2},
-            'y': {'mean': 0, 'std': 2}
+            'x': {'mean': 0, 'std': 1},
+            'y': {'mean': 0, 'std': 1}
         },
         'acceleration': {
             'x': {'mean': 0, 'std': 1},
@@ -92,12 +92,13 @@ def augment(scene):
 nl = 0
 l = 0
 
-data_folder_name = 'processed_data_noise'
+data_folder_name = 'processed_data_new'
 
 maybe_makedirs(data_folder_name)
 data_columns = pd.MultiIndex.from_product([['position', 'velocity', 'acceleration'], ['x', 'y']])
 
 # Process ETH-UCY
+'''
 for desired_source in ['eth', 'hotel', 'univ', 'zara1', 'zara2']:
     for data_class in ['train', 'val', 'test']:
         env = Environment(node_type_list=['PEDESTRIAN'], standardization=standardization)
@@ -129,6 +130,7 @@ for desired_source in ['eth', 'hotel', 'univ', 'zara1', 'zara2']:
 
                     data.sort_values('frame_id', inplace=True)
 
+                    # ? lanni 0.6?
                     if desired_source == "eth" and data_class == "test":
                         data['pos_x'] = data['pos_x'] * 0.6
                         data['pos_y'] = data['pos_y'] * 0.6
@@ -153,7 +155,7 @@ for desired_source in ['eth', 'hotel', 'univ', 'zara1', 'zara2']:
 
                         node_values = node_df[['pos_x', 'pos_y']].values
 
-                        if node_values.shape[0] < 2:
+                        if node_values.shape[0] < 2: # 节点大于2，但是包含了间断的时刻没有处理
                             continue
 
                         new_first_idx = node_df['frame_id'].iloc[0]
@@ -193,13 +195,16 @@ for desired_source in ['eth', 'hotel', 'univ', 'zara1', 'zara2']:
             with open(data_dict_path, 'wb') as f:
                 dill.dump(env, f, protocol=dill.HIGHEST_PROTOCOL)
 exit()
+
+'''
+
 # Process Stanford Drone. Data obtained from Y-Net github repo
 data_columns = pd.MultiIndex.from_product([['position', 'velocity', 'acceleration'], ['x', 'y']])
 
 
 for data_class in ["train", "test"]:
     raw_path = "raw_data/stanford"
-    out_path = "processed_data"
+    out_path = "processed_data_new"
     data_path = os.path.join(raw_path, f"{data_class}_trajnet.pkl")
     print(f"Processing SDD {data_class}")
     data_out_path = os.path.join(out_path, f"sdd_{data_class}.pkl")

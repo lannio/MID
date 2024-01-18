@@ -1,19 +1,39 @@
-############ MID Config #############
+############ MID Config ############# ddpm+ddim1000
+folder: '0529'
+dataset: univ
+exp: 'updd-100_200-102'
+ddim: True
+newCNN: True # encoder
+num_ddim: 100
+num_steps: 200
+ddim_eta: 0.0
+clip_denoised: False
+newLoss: True
+newLoss1010: False
+loss1: 10.
+loss2: 100000.
+loss3: 10.
+sample_out: 10 #diff
+sample: 2
 # optimizer
 lr: 0.001
+gamma: 0.95
+encoder_dim: 256
+encoder_dim_cnn: 128
+shuffle: True
 # dataset
-data_dir: processed_data
+data_dir: processed_data #_noise
   # the path with the directory with XXX.pkl
 # Training Prarmeters:
-diffnet: TransformerConcatLinear #TransformerConcatLinear
-encoder_dim: 256
+diffnet: CNNConcatLinear # TransformerConcatLinear #CNNConcatLinear
+model_name: '/home/yaoliu/scratch/experiment/diffusion/0312/univ/speed-updd-100_200_100/univ_epoch90.pt'
 tf_layer: 3
-epochs: 90
+epochs: 300
 batch_size: 256
 eval_batch_size: 256
 k_eval: 25
 seed: 123
-eval_every: 30
+eval_every: 10
 # Testing
 eval_at: 70
 eval_mode: False
@@ -40,5 +60,5 @@ scene_freq_mult_eval: False
 scene_freq_mult_viz: False
 no_edge_encoding: False
 # Data Parameters:
-device: cuda
-eval_device: None
+# device: cuda:2
+# eval_device: cuda:2

@@ -24,7 +24,7 @@ class NodeType(object):
 
 class NodeTypeEnum(list):
     def __init__(self, node_type_list):
-        self.node_type_list = node_type_list
+        self.node_type_list = node_type_list # =['PEDESTRIAN']
         node_types = [NodeType(name, node_type_list.index(name) + 1) for name in node_type_list]
         super().__init__(node_types)
 

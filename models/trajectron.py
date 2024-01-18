@@ -235,7 +235,7 @@ def get_timesteps_data(env, scene, t, node_type, state, pred_state,
 
 
 class Trajectron(object):
-    def __init__(self, model_registrar,
+    def __init__(self, config, model_registrar,
                  hyperparams,
                  device):
         super(Trajectron, self).__init__()
@@ -249,28 +249,35 @@ class Trajectron(object):
         self.nodes = set()
 
         self.env = None
+        self.config = config
 
-        self.min_ht = self.hyperparams['minimum_history_length']
-        self.max_ht = self.hyperparams['maximum_history_length']
-        self.ph = self.hyperparams['prediction_horizon']
+        self.min_ht = self.hyperparams['minimum_history_length'] # 1
+        self.max_ht = self.hyperparams['maximum_history_length'] # 7
+        self.ph = self.hyperparams['prediction_horizon'] # 12 
         self.state = self.hyperparams['state']
-        self.state_length = dict()
+        '''
+        {'PEDESTRIAN': {'position': ['x', 'y'],
+                        'velocity': ['x', 'y'],
+                        'acceleration': ['x', 'y']}}
+        '''
+        self.state_length = dict() # {'PEDESTRIAN': 6}
         for state_type in self.state.keys():
             self.state_length[state_type] = int(
                 np.sum([len(entity_dims) for entity_dims in self.state[state_type].values()])
             )
-        self.pred_state = self.hyperparams['pred_state']
+        self.pred_state = self.hyperparams['pred_state'] # {'PEDESTRIAN': {'velocity': ['x', 'y']}}
 
     def set_environment(self, env):
         self.env = env
 
         self.node_models_dict.clear()
-        edge_types = env.get_edge_types()
+        edge_types = env.get_edge_types() # [(PEDESTRIAN, PEDESTRIAN)]
 
-        for node_type in env.NodeType:
+        for node_type in env.NodeType: # [PEDESTRIAN]
             # Only add a Model for NodeTypes we want to predict
             if node_type in self.pred_state.keys():
                 self.node_models_dict[node_type] = MultimodalGenerativeCVAE(env,
+                                                                            self.config,
                                                                             node_type,
                                                                             self.model_registrar,
                                                                             self.hyperparams,

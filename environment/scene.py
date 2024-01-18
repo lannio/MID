@@ -6,6 +6,7 @@ from .node import MultiNode
 
 class Scene(object):
     def __init__(self, timesteps, map=None, dt=1, name="", frequency_multiplier=1, aug_func=None,  non_aug_scene=None):
+        # max_frame=1 dt=0.4
         self.map = map
         self.timesteps = timesteps
         self.dt = dt
@@ -49,6 +50,11 @@ class Scene(object):
                         edge_addition_filter=None,
                         edge_removal_filter=None) -> SceneGraph:
         """
+        scene_graph = scene.get_scene_graph(timestep, #10
+                                    env.attention_radius, # {(PEDESTRIAN, PEDESTRIAN): 3.0}
+                                    hyperparams['edge_addition_filter'], # [0.25, 0.5, 0.75, 1.0]
+                                    hyperparams['edge_removal_filter']) # [1.0, 0.0]
+
         Returns the Scene Graph for a given timestep. If the Temporal Scene Graph was pre calculated,
         the temporal scene graph is sliced. Otherwise the scene graph is calculated on the spot.
 
@@ -62,7 +68,8 @@ class Scene(object):
             timestep_range = np.array([timestep - len(edge_removal_filter), timestep])
             node_pos_dict = dict()
             present_nodes = self.present_nodes(np.array([timestep]))
-
+            # {10: [PEDESTRIAN/2, PEDESTRIAN/3, PEDESTRIAN/4, PEDESTRIAN/5, PEDESTRIAN/6]}
+            
             for node in present_nodes[timestep]:
                 node_pos_dict[node] = np.squeeze(node.get(timestep_range, {'position': ['x', 'y']}))
             tsg = TemporalSceneGraph.create_from_temp_scene_dict(node_pos_dict,

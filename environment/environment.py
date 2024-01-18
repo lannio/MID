@@ -7,7 +7,7 @@ from .node_type import NodeTypeEnum
 class Environment(object):
     def __init__(self, node_type_list, standardization, scenes=None, attention_radius=None, robot_type=None):
         self.scenes = scenes
-        self.node_type_list = node_type_list
+        self.node_type_list = node_type_list # =['PEDESTRIAN']
         self.attention_radius = attention_radius
         self.NodeType = NodeTypeEnum(node_type_list)
         self.robot_type = robot_type

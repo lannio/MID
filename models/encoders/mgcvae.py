@@ -1,3 +1,5 @@
+# 5 新loss
+# ==> 4 ==>2 attention 无relu
 import warnings
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,6 +14,7 @@ import pdb
 class MultimodalGenerativeCVAE(object):
     def __init__(self,
                  env,
+                 config,
                  node_type,
                  model_registrar,
                  hyperparams,
@@ -19,6 +22,7 @@ class MultimodalGenerativeCVAE(object):
                  edge_types,
                  ):
         self.hyperparams = hyperparams
+        self.config = config
         self.env = env
         self.node_type = node_type
         self.model_registrar = model_registrar
@@ -51,6 +55,51 @@ class MultimodalGenerativeCVAE(object):
 
         self.npl_rate = self.hyperparams['npl_rate']
         self.NPairLoss = NPairLoss(self.hyperparams['tao'])
+
+        # self.relu_l = nn.LeakyReLU(0.1)
+        # self.relu = nn.ReLU()
+
+        self.cnn_his_1 = nn.Conv1d(6, self.config.encoder_dim_cnn, 1).to(self.device)
+        self.cnn_his_2 = nn.Conv1d(6, self.config.encoder_dim_cnn, 2).to(self.device)
+        self.cnn_his_3 = nn.Conv1d(6, self.config.encoder_dim_cnn, 3).to(self.device)
+        self.cnn_his_4 = nn.Conv1d(6, self.config.encoder_dim_cnn, 4).to(self.device)
+        self.cnn_his_5 = nn.Conv1d(6, self.config.encoder_dim_cnn, 5).to(self.device)
+        self.cnn_his_6 = nn.Conv1d(6, self.config.encoder_dim_cnn, 6).to(self.device)
+        self.cnn_his_7 = nn.Conv1d(6, self.config.encoder_dim_cnn, 7).to(self.device)
+        self.cnn_his_8 = nn.Conv1d(6, self.config.encoder_dim_cnn, 8).to(self.device)
+
+        self.his_emb = nn.Conv1d(
+            self.config.encoder_dim_cnn,
+            2*self.config.encoder_dim_cnn,
+            1,
+            bias=True).to(self.device)
+
+        self.his_demb = nn.Conv1d(
+            2*self.config.encoder_dim_cnn,
+            self.config.encoder_dim_cnn,
+            1,
+            bias=True).to(self.device)
+
+        self.cnn_nei_1 = nn.Conv1d(12, self.config.encoder_dim_cnn, 1).to(self.device)
+        self.cnn_nei_2 = nn.Conv1d(12, self.config.encoder_dim_cnn, 2).to(self.device)
+        self.cnn_nei_3 = nn.Conv1d(12, self.config.encoder_dim_cnn, 3).to(self.device)
+        self.cnn_nei_4 = nn.Conv1d(12, self.config.encoder_dim_cnn, 4).to(self.device)
+        self.cnn_nei_5 = nn.Conv1d(12, self.config.encoder_dim_cnn, 5).to(self.device)
+        self.cnn_nei_6 = nn.Conv1d(12, self.config.encoder_dim_cnn, 6).to(self.device)
+        self.cnn_nei_7 = nn.Conv1d(12, self.config.encoder_dim_cnn, 7).to(self.device)
+        self.cnn_nei_8 = nn.Conv1d(12, self.config.encoder_dim_cnn, 8).to(self.device)
+
+        self.nei_emb = nn.Conv1d(
+            self.config.encoder_dim_cnn,
+            2*self.config.encoder_dim_cnn,
+            1,
+            bias=True).to(self.device)
+
+        self.nei_demb = nn.Conv1d(
+            2*self.config.encoder_dim_cnn,
+            self.config.encoder_dim_cnn,
+            1,
+            bias=True).to(self.device)
 
     def set_curr_iter(self, curr_iter):
         self.curr_iter = curr_iter
@@ -430,14 +479,26 @@ class MultimodalGenerativeCVAE(object):
         ##################
         # Encode History #
         ##################
-        node_history_encoded = self.encode_node_history(mode,
-                                                        node_history_st,
-                                                        first_history_indices)
+        # lanni ? time encodeing; attention; if original
+        if (self.config.newCNN):
+            node_history_encoded = self.encode_node_history_CNN(mode, # 1，2，3  torch.Size([256, 128])
+                                                        node_history_st, # torch.Size([256, 8, 6])
+                                                        first_history_indices) # torch.Size([256])
+        else:
+            node_history_encoded = self.encode_node_history(mode, # 1，2，3  torch.Size([256, 128])
+                                                        node_history_st, # torch.Size([256, 8, 6])
+                                                        first_history_indices) # torch.Size([256])
+        '''
+        class ModeKeys(Enum):
+            TRAIN = 1
+            EVAL = 2
+            PREDICT = 3
+        '''
 
         ##################
         # Encode Present #
         ##################
-        node_present = node_present_state_st  # [bs, state_dim]
+        node_present = node_present_state_st  # [bs, state_dim] torch.Size([256, 6])
 
         ##################
         # Encode Future #
@@ -450,23 +511,47 @@ class MultimodalGenerativeCVAE(object):
         ##############################
         if self.hyperparams['edge_encoding']:
             node_edges_encoded = list()
-            for edge_type in self.edge_types:
-                # Encode edges for given edge type
-                encoded_edges_type = self.encode_edge(mode,
-                                                      node_history,
-                                                      node_history_st,
-                                                      edge_type,
-                                                      neighbors[edge_type],
-                                                      neighbors_edge_value[edge_type],
-                                                      first_history_indices)
-                node_edges_encoded.append(encoded_edges_type)  # List of [bs/nbs, enc_rnn_dim]
-            #####################
-            # Encode Node Edges #
-            #####################
-            total_edge_influence = self.encode_total_edge_influence(mode,
-                                                                    node_edges_encoded,
-                                                                    node_history_encoded,
-                                                                    batch_size)
+            # Encode Node Edges per Type #
+            if (self.config.newCNN):
+                for edge_type in self.edge_types:
+                    # Encode edges for given edge type
+                    # lanni ? time encodeing; attention; if original # dynamic_edges  edge_state_combine_method
+                    encoded_edges_type = self.encode_edge_CNN(mode,
+                                                        node_history,
+                                                        node_history_st,
+                                                        edge_type,
+                                                        neighbors[edge_type],
+                                                        neighbors_edge_value[edge_type],
+                                                        first_history_indices) #torch.Size([256, 128])
+                    node_edges_encoded.append(encoded_edges_type)  # List of [bs/nbs, enc_rnn_dim]
+                #####################
+                # Encode Node Edges #
+                #####################
+                # lanni ? attention
+                total_edge_influence = node_edges_encoded[0]
+                # total_edge_influence = self.encode_total_edge_influence(mode,
+                #                                                         node_edges_encoded,
+                #                                                         node_history_encoded,
+                #                                                         batch_size)
+            else:
+                for edge_type in self.edge_types:
+                    # Encode edges for given edge type
+                    # lanni ? time encodeing; attention; if original # dynamic_edges  edge_state_combine_method
+                    encoded_edges_type = self.encode_edge(mode,
+                                                        node_history,
+                                                        node_history_st,
+                                                        edge_type,
+                                                        neighbors[edge_type],
+                                                        neighbors_edge_value[edge_type],
+                                                        first_history_indices) #torch.Size([256, 128])
+                    node_edges_encoded.append(encoded_edges_type)  # List of [bs/nbs, enc_rnn_dim]
+                #####################
+                # Encode Node Edges #
+                #####################
+                total_edge_influence = self.encode_total_edge_influence(mode,
+                                                                        node_edges_encoded,
+                                                                        node_history_encoded,
+                                                                        batch_size)
         #pdb.set_trace()
         ################
         # Map Encoding #
@@ -494,6 +579,8 @@ class MultimodalGenerativeCVAE(object):
 
         # Every node has a history encoder.
         x_concat_list.append(node_history_encoded)  # [bs/nbs, enc_rnn_dim_history]
+        # x_concat_list.append(node_history_encoded)
+
 
         if self.hyperparams['incl_robot_node']:
             robot_future_encoder = self.encode_robot_future(mode, x_r_t, y_r)
@@ -505,7 +592,7 @@ class MultimodalGenerativeCVAE(object):
                                            torch.max(torch.abs(encoded_map)), self.curr_iter)
             x_concat_list.append(encoded_map)
 
-        x = torch.cat(x_concat_list, dim=1)
+        x = torch.cat(x_concat_list, dim=1) #torch.Size([256, 256])
 
         # if mode == ModeKeys.TRAIN or mode == ModeKeys.EVAL:
         #     y_e = self.encode_node_future(mode, node_present, y)
@@ -537,6 +624,40 @@ class MultimodalGenerativeCVAE(object):
 
         return outputs[torch.arange(first_history_indices.shape[0]), last_index_per_sequence]
 
+    def encode_node_history_CNN(self, mode, node_hist, first_history_indices):
+        """
+        Encodes the nodes history.
+
+        :param mode: Mode in which the model is operated. E.g. Train, Eval, Predict.
+        :param node_hist: Historic and current state of the node. [bs, mhl, state]
+        :param first_history_indices: First timestep (index) in scene for which data is available for a node [bs]
+        :return: Encoded node history tensor. [bs, enc_rnn_dim]
+        """
+        node=node_hist.permute(0,2,1)
+        out1=self.cnn_his_1(node) #torch.Size([256, 128, 8])
+        out2=self.cnn_his_2(node) #torch.Size([256, 128, 7])
+        out3=self.cnn_his_3(node) #torch.Size([256, 128, 6])
+        out4=self.cnn_his_4(node) #torch.Size([256, 128, 5])
+        out5=self.cnn_his_5(node) #torch.Size([256, 128, 4])
+        out6=self.cnn_his_6(node) #torch.Size([256, 128, 3])
+        out7=self.cnn_his_7(node) #torch.Size([256, 128, 2])
+        out8=self.cnn_his_8(node) #torch.Size([256, 128, 1])
+        outfinal=torch.concat((out1[:,:,7:],out2[:,:,6:],out3[:,:,5:],out4[:,:,4:],out5[:,:,3:],out6[:,:,2:],out7[:,:,1:],out8[:,:,0:]),dim=2) # torch.Size([256, 128, 8])
+        # outfinal = relu_l(outfinal)
+
+        embAttn = self.his_emb(outfinal)
+        dembAttn = self.his_demb(embAttn)
+        level_weight = F.softmax(dembAttn, dim=1)
+        new_outfinal= level_weight * outfinal
+        new_outfinal=torch.sum(new_outfinal,dim=2) # torch.Size([256, 128])
+
+        outputs = F.dropout(new_outfinal,
+                            p=1. - self.hyperparams['rnn_kwargs']['dropout_keep_prob'],
+                            training=(mode == ModeKeys.TRAIN))  # [bs, max_time, enc_rnn_dim]
+
+
+        return outputs
+
     def encode_edge(self,
                     mode,
                     node_history,
@@ -548,12 +669,12 @@ class MultimodalGenerativeCVAE(object):
 
         max_hl = self.hyperparams['maximum_history_length']
 
-        edge_states_list = list()  # list of [#of neighbors, max_ht, state_dim]
+        edge_states_list = list()  # list of [#of neighbors, max_ht, state_dim] torch.Size([#3, 8, 6])
         for i, neighbor_states in enumerate(neighbors):  # Get neighbors for timestep in batch
             if len(neighbor_states) == 0:  # There are no neighbors for edge type # TODO necessary?
                 neighbor_state_length = int(
                     np.sum([len(entity_dims) for entity_dims in self.state[edge_type[1]].values()])
-                )
+                ) # 6
                 edge_states_list.append(torch.zeros((1, max_hl + 1, neighbor_state_length), device=self.device))
             else:
                 edge_states_list.append(torch.stack(neighbor_states, dim=0).to(self.device))
@@ -562,15 +683,15 @@ class MultimodalGenerativeCVAE(object):
             # Used in Structural-RNN to combine edges as well.
             op_applied_edge_states_list = list()
             for neighbors_state in edge_states_list:
-                op_applied_edge_states_list.append(torch.sum(neighbors_state, dim=0))
-            combined_neighbors = torch.stack(op_applied_edge_states_list, dim=0)
+                op_applied_edge_states_list.append(torch.sum(neighbors_state, dim=0)) #  list of [max_ht, state_dim] torch.Size([8, 6])
+            combined_neighbors = torch.stack(op_applied_edge_states_list, dim=0) # torch.Size([256, 8, 6])
             if self.hyperparams['dynamic_edges'] == 'yes':
                 # Should now be (bs, time, 1)
                 op_applied_edge_mask_list = list()
                 for edge_value in neighbors_edge_value:
                     op_applied_edge_mask_list.append(torch.clamp(torch.sum(edge_value.to(self.device),
                                                                            dim=0, keepdim=True), max=1.))
-                combined_edge_masks = torch.stack(op_applied_edge_mask_list, dim=0)
+                combined_edge_masks = torch.stack(op_applied_edge_mask_list, dim=0) # torch.Size([256, 1])
 
         elif self.hyperparams['edge_state_combine_method'] == 'max':
             # Used in NLP, e.g. max over word embeddings in a sentence.
@@ -598,9 +719,9 @@ class MultimodalGenerativeCVAE(object):
                 for edge_value in neighbors_edge_value:
                     op_applied_edge_mask_list.append(torch.clamp(torch.mean(edge_value.to(self.device),
                                                                             dim=0, keepdim=True), max=1.))
-                combined_edge_masks = torch.stack(op_applied_edge_mask_list, dim=0)
+                combined_edge_masks = torch.stack(op_applied_edge_mask_list, dim=0) # torch.Size([256, 8, 6])
 
-        joint_history = torch.cat([combined_neighbors, node_history_st], dim=-1)
+        joint_history = torch.cat([combined_neighbors, node_history_st], dim=-1) # torch.Size([256, 8, 12])
 
         outputs, _ = run_lstm_on_variable_length_seqs(
             self.node_modules[DirectedEdge.get_str_from_types(*edge_type) + '/edge_encoder'],
@@ -618,6 +739,69 @@ class MultimodalGenerativeCVAE(object):
             return ret * combined_edge_masks
         else:
             return ret
+
+    def encode_edge_CNN(self, # dynamic_edges  edge_state_combine_method
+                    mode,
+                    node_history,
+                    node_history_st,
+                    edge_type,
+                    neighbors,
+                    neighbors_edge_value,
+                    first_history_indices):
+
+        max_hl = self.hyperparams['maximum_history_length']
+
+        edge_states_list = list()  # list of [#of neighbors, max_ht, state_dim] torch.Size([#3, 8, 6])
+        for i, neighbor_states in enumerate(neighbors):  # Get neighbors for timestep in batch
+            if len(neighbor_states) == 0:  # There are no neighbors for edge type # TODO necessary?
+                neighbor_state_length = int(
+                    np.sum([len(entity_dims) for entity_dims in self.state[edge_type[1]].values()])
+                ) # 6
+                edge_states_list.append(torch.zeros((1, max_hl + 1, neighbor_state_length), device=self.device))
+            else:
+                edge_states_list.append(torch.stack(neighbor_states, dim=0).to(self.device))
+
+        op_applied_edge_states_list = list()
+
+        for i in range(len(edge_states_list)):
+            weight_neighbors_state = edge_states_list[i]
+            if self.hyperparams['dynamic_edges'] == 'yes':
+                weight_neighbors_state=torch.einsum('bij,b->bij', edge_states_list[i], neighbors_edge_value[i].to(self.device))
+            if self.hyperparams['edge_state_combine_method'] == 'sum':
+                op_applied_edge_states_list.append(torch.sum(weight_neighbors_state, dim=0)) #  list of [max_ht, state_dim] torch.Size([8, 6])
+            elif self.hyperparams['edge_state_combine_method'] == 'max':
+                op_applied_edge_states_list.append(torch.max(weight_neighbors_state, dim=0))
+            elif self.hyperparams['edge_state_combine_method'] == 'mean':
+                op_applied_edge_states_list.append(torch.mean(weight_neighbors_state, dim=0))
+        combined_neighbors = torch.stack(op_applied_edge_states_list, dim=0) # torch.Size([256, 8, 6])
+
+        joint_history = torch.cat([combined_neighbors, node_history_st], dim=-1)
+
+        nei=joint_history.permute(0,2,1)
+        out1=self.cnn_nei_1(nei) #torch.Size([256, 64, 6])
+        out2=self.cnn_nei_2(nei) #torch.Size([256, 32, 5])
+        out3=self.cnn_nei_3(nei) #torch.Size([256, 8, 4])
+        out4=self.cnn_nei_4(nei) #torch.Size([256, 8, 3])
+        out5=self.cnn_nei_5(nei) #torch.Size([256, 8, 2])
+        out6=self.cnn_nei_6(nei) #torch.Size([256, 8, 1])
+        out7=self.cnn_nei_7(nei) #torch.Size([256, 8, 2])
+        out8=self.cnn_nei_8(nei) #torch.Size([256, 8, 1])
+
+        outfinal=torch.concat((out1[:,:,7:],out2[:,:,6:],out3[:,:,5:],out4[:,:,4:],out5[:,:,3:],out6[:,:,2:],out7[:,:,1:],out8[:,:,0:]),dim=2) # torch.Size([256, 128, 8])
+        # outfinal = F.relu(outfinal)
+
+
+        embAttn = self.nei_emb(outfinal)
+        dembAttn = self.nei_demb(embAttn)
+        level_weight = F.softmax(dembAttn, dim=1)
+        new_outfinal= level_weight * outfinal
+        new_outfinal=torch.sum(new_outfinal,dim=2) # torch.Size([256, 128])
+
+        outputs = F.dropout(new_outfinal,
+                            p=1. - self.hyperparams['rnn_kwargs']['dropout_keep_prob'],
+                            training=(mode == ModeKeys.TRAIN))  # [bs, max_time, enc_rnn_dim]
+
+        return outputs
 
     def encode_total_edge_influence(self, mode, encoded_edges, node_history_encoder, batch_size):
         if self.hyperparams['edge_influence_combine_method'] == 'sum':
@@ -968,6 +1152,17 @@ class MultimodalGenerativeCVAE(object):
                    map,
                    prediction_horizon) -> torch.Tensor:
         """
+                feat_x = model.get_latent(inputs=x,
+                                inputs_st=x_st_t,
+                                first_history_indices=first_history_index,
+                                labels=y,
+                                labels_st=y_st_t,
+                                neighbors=restore(neighbors_data_st),
+                                neighbors_edge_value=restore(neighbors_edge_value),
+                                robot=robot_traj_st_t,
+                                map=map,
+                                prediction_horizon=self.ph)
+                                
         Calculates the training loss for a batch.
 
         :param inputs: Input tensor including the state for each agent over time [bs, t, state].

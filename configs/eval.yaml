@@ -1,0 +1,67 @@
+############ MID Config ############# ddpm+ddim1000
+folder: 'vis'
+dataset: zara1
+exp: '01'
+# model_name: '/home/yaoliu/scratch/experiment/diffusion/0302/a-10_100-s1010-1/eth_epoch40.pt'
+# model_name: '/home/yaoliu/scratch/experiment/diffusion/0228/zara1/a-100_200-l1_10-l2_15-l3_10-s1010-g95-de1010/zara1_epoch140.pt'
+model_name: '/home/yaoliu/scratch/experiment/diffusion/0313/zara1/vis/zara1_epoch90.pt'
+ddim: True
+newCNN: True # encoder
+num_ddim: 100
+num_steps: 200
+ddim_timesteps_test: 10
+ddim_eta: 0.0
+clip_denoised: False
+newLoss: True
+newLoss1010: True
+loss1: 10.
+loss2: 100000.
+loss3: 10.
+sample_out: 10
+sample: 10
+# optimizer
+lr: 0.001
+gamma: 0.95
+encoder_dim: 256
+encoder_dim_cnn: 128
+shuffle: False
+# dataset
+data_dir: processed_data_noise
+  # the path with the directory with XXX.pkl
+# Training Prarmeters:
+diffnet: CNNConcatLinear # TransformerConcatLinear #CNNConcatLinear
+tf_layer: 3
+epochs: 300
+batch_size: 256
+eval_batch_size: 256
+k_eval: 25
+seed: 123
+eval_every: 10
+# Testing
+eval_at: 70
+eval_mode: True
+############### Trajectron++ Config #################
+# misc
+conf: None
+debug: False
+preprocess_workers: 0
+# model parameters
+offline_scene_graph: yes
+dynamic_edges: yes
+edge_state_combine_method: sum
+edge_influence_combine_method: attention
+edge_addition_filter: [0.25, 0.5, 0.75, 1.0]
+edge_removal_filter: [1.0, 0.0]
+override_attention_radius: []
+incl_robot_node: False
+map_encoding: False
+augment: True
+node_freq_mult_train: False
+node_freq_mult_eval: False
+scene_freq_mult_train: False
+scene_freq_mult_eval: False
+scene_freq_mult_viz: False
+no_edge_encoding: False
+# Data Parameters:
+# device: cuda:2
+# eval_device: cuda:2

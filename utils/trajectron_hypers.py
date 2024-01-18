@@ -5,7 +5,7 @@ def get_traj_hypers():
     'min_learning_rate': 1e-05,
     'learning_decay_rate': 0.9999,
     'prediction_horizon': 12,
-    'minimum_history_length': 1,
+    'minimum_history_length': 7,
     'maximum_history_length': 7,
     'map_encoder':
         {'PEDESTRIAN':

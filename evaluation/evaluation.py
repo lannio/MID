@@ -6,7 +6,10 @@ from .trajectory_utils import prediction_output_to_trajectories
 #import visualization
 from matplotlib import pyplot as plt
 import pdb
-
+import torch
+import torch.distributions.multivariate_normal as torchdist
+import torch.multiprocessing as multiprocessing
+import numpy as np
 
 def compute_ade(predicted_trajs, gt_traj):
     #pdb.set_trace()
@@ -54,6 +57,112 @@ def compute_obs_violations(predicted_trajs, map):
     num_viol_trajs = np.sum(traj_obs_values.max(axis=1) > 0, dtype=float)
 
     return num_viol_trajs
+
+def compute_new_de(pred,gt,config):#256,12,5/2
+    predlist=len(pred)
+    kstep_V_pred_ls = []
+    gt = gt.permute(1,0,2)*0.4
+    for ii in range(predlist):
+        predict=pred[ii].permute(1,0,2)
+        sx = torch.exp(predict[:, :, 2])  # sx
+        sy = torch.exp(predict[:, :, 3])  # sy
+        corr = torch.tanh(predict[:, :, 4])  # corr
+
+        cov = torch.zeros(predict.shape[0], predict.shape[1], 2, 2).to('cuda')
+        cov[:, :, 0, 0] = sx * sx
+        cov[:, :, 0, 1] = corr * sx * sy
+        cov[:, :, 1, 0] = corr * sx * sy
+        cov[:, :, 1, 1] = sy * sy
+        mean = predict[:, :, 0:2]
+        # dimensionality reminder: mean: [12, num_person, 2], cov: [12, num_person, 2, 2]
+
+        """pytorch solution for sampling"""
+
+        mvnormal = torchdist.MultivariateNormal(mean, cov)
+        KSTEPS=config.sample
+        for i in range(KSTEPS-1):
+            kstep_V_pred_ls.append(torch.cumsum((mvnormal.sample()*0.4), dim=0))  # cat [12, num_person, 2]
+        kstep_V_pred_ls.append(torch.cumsum(mean*0.4, dim=0))
+    kstep_V_pred_ls = torch.stack(kstep_V_pred_ls, dim=0) # [KSTEPS, 12, num_person, 2]
+
+    # kstep_V_pred = np.concatenate([traj for traj in kstep_V_pred_ls], axis=1) # [12, KSTEPS * num_person, 2]
+
+    """end of sampling"""
+
+    V_y_rel_to_abs =  torch.cumsum((gt), dim=0) # [12, num_person, 2] speed???)
+
+    ade=torch.mean(torch.min(torch.norm((kstep_V_pred_ls - V_y_rel_to_abs),dim=3),dim=0)[0],dim=[0,1])
+    fde=torch.mean(torch.min(torch.norm((kstep_V_pred_ls - V_y_rel_to_abs)[:,-1,:,:],dim=2),dim=0)[0],dim=[0])
+    return [ade,fde]
+
+
+
+def compute_new_de1010(pred,gt,config):#256,12,5/2
+
+    pred=torch.stack(pred)
+
+    gt = gt.permute(1,0,2)*0.4 #torch.Size([12, 256, 2])
+    V_y_rel_to_abs =  torch.cumsum((gt), dim=0)
+
+    meanpred=pred[:,:,:,0:2].permute(0,2,1,3)*0.4 #torch.Size([3, 12, 16, 2])
+    V_y_pred_to_abs =  torch.cumsum((meanpred), dim=1)
+
+    dis=torch.norm((V_y_pred_to_abs - V_y_rel_to_abs),dim=3)#torch.Size([3, 12, 16])
+    index=torch.argmin(dis,dim=0)#torch.Size([12, 16])
+
+    pred = pred.permute(2,1,3,0) # 12,256,5,3
+    index=index.repeat(1,5,1,1).permute(2,3,1,0) # 12,16,5,1
+    newpred=torch.gather(pred,3,index).squeeze(3) # torch.Size([12, 16, 5])
+
+    # predlist=len(pred)
+    kstep_V_pred_ls = []
+    # gt = gt.permute(1,0,2)*0.4
+    # for ii in range(predlist):
+    predict=newpred
+    sx = torch.exp(predict[:, :, 2])  # sx
+    sy = torch.exp(predict[:, :, 3])  # sy
+    corr = torch.tanh(predict[:, :, 4])  # corr
+
+    cov = torch.zeros(predict.shape[0], predict.shape[1], 2, 2).to('cuda')
+    cov[:, :, 0, 0] = sx * sx
+    cov[:, :, 0, 1] = corr * sx * sy
+    cov[:, :, 1, 0] = corr * sx * sy
+    cov[:, :, 1, 1] = sy * sy
+    mean = predict[:, :, 0:2]
+    # dimensionality reminder: mean: [12, num_person, 2], cov: [12, num_person, 2, 2]
+
+    """pytorch solution for sampling"""
+
+    mvnormal = torchdist.MultivariateNormal(mean, cov)
+    KSTEPS=config.sample
+    for i in range(KSTEPS-1):
+        kstep_V_pred_ls.append(torch.cumsum((mvnormal.sample()*0.4), dim=0))  # cat [12, num_person, 2]
+    kstep_V_pred_ls.append(torch.cumsum(mean*0.4, dim=0))
+    kstep_V_pred_ls = torch.stack(kstep_V_pred_ls, dim=0) # [KSTEPS, 12, num_person, 2]
+
+    # kstep_V_pred = np.concatenate([traj for traj in kstep_V_pred_ls], axis=1) # [12, KSTEPS * num_person, 2]
+
+    """end of sampling"""
+
+    # V_y_rel_to_abs =  torch.cumsum((gt), dim=0) # [12, num_person, 2] speed???)
+
+    ade=torch.mean(torch.min(torch.norm((kstep_V_pred_ls - V_y_rel_to_abs),dim=3),dim=0)[0],dim=[0,1])
+    fde=torch.mean(torch.min(torch.norm((kstep_V_pred_ls - V_y_rel_to_abs)[:,-1,:,:],dim=2),dim=0)[0],dim=[0])
+    return [ade,fde]
+
+def compute_nogauss_de(pred,gt,config):#256,12,5/2
+    predlist=len(pred)
+    kstep_V_pred_ls = []
+    gt = gt.permute(1,0,2)*0.4
+    for ii in range(predlist):
+        predict=pred[ii].permute(1,0,2)*0.4
+        kstep_V_pred_ls.append(torch.cumsum(predict, dim=0))
+    kstep_V_pred_ls = torch.stack(kstep_V_pred_ls, dim=0)
+    V_y_rel_to_abs =  torch.cumsum((gt), dim=0) # [12, num_person, 2] speed???)
+
+    ade=torch.mean(torch.min(torch.norm((kstep_V_pred_ls - V_y_rel_to_abs),dim=3),dim=0)[0],dim=[0,1])
+    fde=torch.mean(torch.min(torch.norm((kstep_V_pred_ls - V_y_rel_to_abs)[:,-1,:,:],dim=2),dim=0)[0],dim=[0])
+    return [ade,fde]
 
 
 def compute_batch_statistics(prediction_output_dict,
